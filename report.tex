@@ -1,0 +1,209 @@
+\documentclass[12pt,a4paper]{article}
+
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{amsmath, amssymb}
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{caption}
+\usepackage{hyperref}
+\usepackage{parskip}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{enumitem}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    urlcolor=blue,
+    citecolor=black
+}
+
+\title{\textbf{Airline Passenger Satisfaction: \\
+A Comparative Study of Classification and Regression Models}}
+\author{}
+\date{February 2026}
+
+\begin{document}
+
+\maketitle
+
+% ─────────────────────────────────────────────────────────────
+\section{Introduction}
+% ─────────────────────────────────────────────────────────────
+
+This study analyzes an airline passenger survey dataset (103{,}904 training and 25{,}976 test responses) covering 23 demographic, trip, and service rating features. The primary objective is to predict passenger satisfaction (a binary label: \textit{satisfied} vs.\ \textit{neutral/dissatisfied}). 
+
+The analysis is conducted in four stages: (1) binary logistic regression to identify key satisfaction drivers and address confounding variables; (2) multinomial logistic regression to predict booking class; (3) a comparison of discriminative models (LDA, QDA, Naïve Bayes); and (4) an evaluation of OLS versus Poisson regression for predicting flight distance.
+
+% ─────────────────────────────────────────────────────────────
+\section{Data and Preprocessing}
+% ─────────────────────────────────────────────────────────────
+
+Missing values in \textit{Arrival Delay} (0.30\%) were imputed with the training median. Categorical variables were one-hot encoded (dropping one dummy per group to avoid multicollinearity), and numeric features were standardised using training set parameters. 
+
+The binary target is roughly balanced (57\% neutral/dissatisfied vs.\ 43\% satisfied). However, the booking-class variable exhibits class imbalance, with Eco Plus representing only $\approx$7\% of the dataset.
+
+% ─────────────────────────────────────────────────────────────
+\section{Exploratory Data Analysis}
+% ─────────────────────────────────────────────────────────────
+
+Initial EDA reveals that Business travellers and Business-class passengers dominate the satisfied category. A correlation heatmap identifies two distinct clusters of positively correlated features: cabin-comfort items (e.g., seat comfort, cleanliness) and digital/ground services (e.g., online boarding, Wi-Fi). Delay variables are strongly collinear with each other but weakly correlated with service scores.
+
+% ─────────────────────────────────────────────────────────────
+\section{Binary Logistic Regression}
+\label{sec:binary_logit}
+% ─────────────────────────────────────────────────────────────
+
+\subsection{Full Model Analysis}
+
+A binary logistic regression model was fit to predict satisfaction (Table~\ref{tab:logit_full}). Online boarding emerged as the strongest positive predictor, while Personal travel and Disloyal customer status were the strongest negative predictors. Flight distance was statistically insignificant ($p = 0.129$).
+
+\begin{table}[h!]
+\centering
+\caption{Binary logistic regression --- selected coefficients (full model).
+         $N = 103{,}904$, McFadden's pseudo-$R^2 = 0.512$.}
+\label{tab:logit_full}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Variable} & \textbf{Coef.} & \textbf{Std.\ Err.} & \textbf{$z$} & \textbf{$p$} \\
+\midrule
+Online boarding                    &  0.826 & 0.014 &  59.86 & $<.001$ \\
+Type of Travel: Personal           & $-1.259$ & 0.015 & $-86.61$ & $<.001$ \\
+Customer Type: disloyal            & $-0.787$ & 0.012 & $-68.09$ & $<.001$ \\
+Inflight Wi-Fi service             &  0.524 & 0.015 &  34.46 & $<.001$ \\
+Arrival Delay in Minutes           & $-0.341$ & 0.035 &  $-9.69$ & $<.001$ \\
+Departure Delay in Minutes         &  0.158 & 0.035 &   4.50 & $<.001$ \\
+Class: Eco                         & $-0.366$ & 0.013 & $-28.74$ & $<.001$ \\
+Flight Distance                    & $-0.017$ & 0.011 &  $-1.52$ &  0.129 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The positive coefficient for \textit{Departure Delay} is counterintuitive. It is a suppressor effect caused by extreme collinearity with \textit{Arrival Delay}. The model artificially boosts the satisfaction of flights that departed late but made up time in the air. 
+
+\subsection{Removing the Confounding Variable}
+
+To resolve the collinearity, we dropped \textit{Departure Delay} (Table~\ref{tab:logit_nodep}). The model fit (pseudo-$R^2$) remained unchanged, while the \textit{Arrival Delay} coefficient shrank to its true direct effect ($-0.190$) with a significantly smaller standard error.
+
+\begin{table}[h!]
+\centering
+\caption{Arrival Delay coefficient before and after removing Departure Delay.}
+\label{tab:logit_nodep}
+\begin{tabular}{lcc}
+\toprule
+ & \textbf{Full model} & \textbf{Without Departure Delay} \\
+\midrule
+Arrival Delay coef. & $-0.341$ & $-0.190$ \\
+Arrival Delay std.\ err. & 0.035 & 0.010 \\
+McFadden pseudo-$R^2$ & 0.5120 & 0.5119 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─────────────────────────────────────────────────────────────
+\section{Multinomial Logistic Regression}
+\label{sec:multinomial}
+% ─────────────────────────────────────────────────────────────
+
+We applied multinomial logistic regression (with balanced class weights) to predict the passenger's booking class. 
+
+\begin{table}[h!]
+\centering
+\caption{Multinomial logistic regression test-set report ($N = 25{,}976$).}
+\label{tab:multi}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Class} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{Support} \\
+\midrule
+Business & 0.88 & 0.80 & 0.84 & 12{,}495 \\
+Eco      & 0.79 & 0.73 & 0.76 & 11{,}564 \\
+Eco Plus & 0.16 & 0.34 & 0.22 &  1{,}917 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+While the model accurately identifies Business and Economy passengers, it fails on Eco Plus (F1 = 0.22). Eco Plus passengers occupy a demographic and service-rating middle ground, lacking clean decision boundaries to separate them from the other two classes.
+
+% ─────────────────────────────────────────────────────────────
+\section{Discriminative Models}
+\label{sec:lda_qda}
+% ─────────────────────────────────────────────────────────────
+
+\subsection{Linear and Quadratic Discriminant Analysis (LDA \& QDA)}
+
+LDA achieved 87\% accuracy. Using Youden's $J$ statistic, we found the optimal classification threshold to be 0.54, which marginally improved precision for the satisfied class without harming overall accuracy. 
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.7\linewidth]{image.png}
+    \caption{ROC curve confirming the strong predictive performance of the LDA model.}
+    \label{fig:placeholder}
+\end{figure}
+
+QDA, which estimates a separate covariance matrix per class, achieved slightly lower performance (85\% accuracy). The drop suggests that QDA's added flexibility leads to slight overfitting, and LDA's constraint (shared covariance) is actually beneficial for this dataset.
+
+\subsection{Naïve Bayes}
+Gaussian Naïve Bayes achieved 86\% accuracy despite violating the core assumption of feature independence. This highlights that Naïve Bayes only requires accurate posterior ranking, not precise probability values; correlated features may distort log-likelihood magnitudes without changing the final predicted class.
+
+% ─────────────────────────────────────────────────────────────
+\section{Model Comparison}
+\label{sec:comparison}
+% ─────────────────────────────────────────────────────────────
+
+Table~\ref{tab:comparison} summarises the binary satisfaction classifiers. LR and LDA performed best (87\%), indicating that linear decision boundaries are highly effective for this data. The narrow spread in performance implies that feature engineering and data quality matter more here than the specific algorithm chosen.
+
+\begin{table}[h!]
+\centering
+\caption{Binary classification model comparison ($N = 25{,}976$).}
+\label{tab:comparison}
+\begin{tabular}{lcc}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{Weighted F1} \\
+\midrule
+Logistic Regression (LR)   & 87\%  & 0.87 \\
+LDA (optimal threshold)    & 87\%  & 0.87 \\
+Naïve Bayes (Gaussian)     & 86\%  & 0.86 \\
+QDA ($\texttt{reg\_param}=10^{-4}$) & 85\% & 0.85 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% ─────────────────────────────────────────────────────────────
+\section{Regression Models: OLS vs.\ Poisson}
+% ─────────────────────────────────────────────────────────────
+
+Finally, we modeled \textit{Flight Distance} using demographics and trip types. The OLS model (Table~\ref{tab:ols}) reveals that booking class is the dominant predictor: Economy passengers fly routes averaging 362 fewer miles than Business passengers.
+
+\begin{table}[h!]
+\centering
+\caption{OLS regression --- coefficient estimates for Flight Distance.}
+\label{tab:ols}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Variable} & \textbf{Coef.} & \textbf{Std.\ Err.} & \textbf{$t$} & \textbf{$p$} \\
+\midrule
+Intercept                       & 1189.45 & 2.65 &  448.2 & $<.001$ \\
+Age                             &  $-27.89$ & 2.80 &  $-9.97$ & $<.001$ \\
+Customer Type (disloyal)        & $-246.49$ & 3.10 & $-79.49$ & $<.001$ \\
+Travel Type (Personal)          & $-140.36$ & 3.56 & $-39.46$ & $<.001$ \\
+Class (Eco)                     & $-361.98$ & 3.49 & $-103.7$ & $<.001$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+However, OLS is theoretically flawed for this task, as it assumes normally distributed errors and can predict impossible negative distances. A Poisson GLM (using a log link) mathematically guarantees non-negative predictions. While both models produced valid predictions on the test set, the Poisson model achieved a lower RMSE (\textbf{844.12} vs.\ \textbf{856.66} miles), confirming that its variance assumptions better fit strictly positive, right-skewed data.
+
+% ─────────────────────────────────────────────────────────────
+\section{Conclusions}
+% ─────────────────────────────────────────────────────────────
+
+\begin{itemize}[noitemsep]
+    \item \textbf{Key Satisfaction Drivers:} Online boarding quality, travel purpose (Business), and customer loyalty are the strongest predictors of passenger satisfaction. 
+    \item \textbf{Classification Performance:} Logistic Regression and LDA (87\% accuracy) outperform non-linear or independence-assuming models, proving that simple linear boundaries are sufficient for this dataset.
+    \item \textbf{Multinomial Limitations:} Eco Plus passengers are difficult to classify due to overlapping traits with both Economy and Business classes.
+    \item \textbf{Regression Approach:} For strictly non-negative, right-skewed outcomes like Flight Distance, a Poisson GLM is both theoretically more sound and practically more accurate than standard OLS.
+\end{itemize}
+
+\end{document}
