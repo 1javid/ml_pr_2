@@ -439,13 +439,12 @@ elif page == "🔮 Live Predictor":
             travel_type     = st.selectbox("Type of Travel", ["Business travel", "Personal Travel"])
             flight_class    = st.selectbox("Class", ["Business", "Eco Plus", "Eco"])
             flight_distance = st.number_input("Flight Distance (miles)", 50, 5000, 800, step=50)
-            dep_delay       = st.number_input("Departure Delay (min)", 0, 500, 0)
             arr_delay       = st.number_input("Arrival Delay (min)", 0, 500, 0)
 
         with c3:
             st.markdown("**Service Ratings — Part 1 (1–5)**")
             wifi          = st.slider("Inflight Wifi Service", 1, 5, 3)
-            time_conv     = st.slider("Departure/Arrival Time Convenient", 1, 5, 3)
+            time_conv     = st.slider("Flight time convenience (1–5)", 1, 5, 3, help="How convenient were the scheduled departure and arrival times?")
             online_book   = st.slider("Ease of Online Booking", 1, 5, 3)
             gate          = st.slider("Gate Location", 1, 5, 3)
             food          = st.slider("Food & Drink", 1, 5, 3)
@@ -488,7 +487,7 @@ elif page == "🔮 Live Predictor":
                 "Checkin service":                     checkin,
                 "Inflight service":                    inflight_svc,
                 "Cleanliness":                         cleanliness,
-                "Departure Delay in Minutes":          dep_delay,
+                "Departure Delay in Minutes":          0,
                 "Arrival Delay in Minutes":            arr_delay,
             }
             feat_df = build_feature_vector(row)
@@ -784,7 +783,7 @@ elif page == "📋 Example Results":
                     "Gender": p["gender"], "Age": p["age"],
                     "Customer Type": p["customer_type"], "Travel Type": p["travel_type"],
                     "Class": p["flight_class"], "Flight Distance": f"{p['flight_distance']} miles",
-                    "Departure Delay": f"{p['dep_delay']} min", "Arrival Delay": f"{p['arr_delay']} min",
+                    "Arrival Delay": f"{p['arr_delay']} min",
                 }.items():
                     st.markdown(
                         f"<div style='display:flex;justify-content:space-between;"
