@@ -35,7 +35,7 @@ A Comparative Study of Classification and Regression Models}}
 
 This study analyzes an airline passenger survey dataset (103{,}904 training and 25{,}976 test responses) covering 23 demographic, trip, and service rating features. The primary objective is to predict passenger satisfaction (a binary label: \textit{satisfied} vs.\ \textit{neutral/dissatisfied}). 
 
-The analysis is conducted in four stages: (1) binary logistic regression to identify key satisfaction drivers and address confounding variables; (2) multinomial logistic regression to predict booking class; (3) a comparison of discriminative models (LDA, QDA, Naïve Bayes); and (4) an evaluation of OLS versus Poisson regression for predicting flight distance.
+The analysis is conducted in four stages: (1) binary logistic regression to identify key satisfaction drivers and address confounding variables; (2) multinomial logistic regression to predict booking class from demographics, flight details, and service-related features (excluding satisfaction, which is a post-flight outcome); (3) a comparison of discriminative models (LDA, QDA, Naïve Bayes); and (4) an evaluation of OLS versus Poisson regression for predicting arrival delay in minutes using all available predictors.
 
 % ─────────────────────────────────────────────────────────────
 \section{Data and Preprocessing}
@@ -107,19 +107,19 @@ McFadden pseudo-$R^2$ & 0.5120 & 0.5119 \\
 \label{sec:multinomial}
 % ─────────────────────────────────────────────────────────────
 
-We applied multinomial logistic regression (with balanced class weights) to predict the passenger's booking class. 
+We applied multinomial logistic regression (with balanced class weights) to predict the passenger's booking class. To keep the model logically sound and deployable (e.g., at booking time), we do \emph{not} use satisfaction as a feature: satisfaction is surveyed after the flight and would not be available when predicting class. Predictors therefore include demographics (gender, customer type, age, type of travel), flight distance, all 14 service ratings, and both departure and arrival delay in minutes.
 
 \begin{table}[h!]
 \centering
-\caption{Multinomial logistic regression test-set report ($N = 25{,}976$).}
+\caption{Multinomial logistic regression test-set report ($N = 25{,}976$). Features exclude satisfaction.}
 \label{tab:multi}
 \begin{tabular}{lcccc}
 \toprule
 \textbf{Class} & \textbf{Precision} & \textbf{Recall} & \textbf{F1} & \textbf{Support} \\
 \midrule
-Business & 0.88 & 0.80 & 0.84 & 12{,}495 \\
-Eco      & 0.79 & 0.73 & 0.76 & 11{,}564 \\
-Eco Plus & 0.16 & 0.34 & 0.22 &  1{,}917 \\
+Business & 0.88 & 0.80 & 0.84 & 13{,}977 \\
+Eco      & 0.79 & 0.73 & 0.76 &  9{,}929 \\
+Eco Plus & 0.16 & 0.34 & 0.22 &  2{,}070 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -174,26 +174,23 @@ QDA ($\texttt{reg\_param}=10^{-4}$) & 85\% & 0.85 \\
 \section{Regression Models: OLS vs.\ Poisson}
 % ─────────────────────────────────────────────────────────────
 
-Finally, we modeled \textit{Flight Distance} using demographics and trip types. The OLS model (Table~\ref{tab:ols}) reveals that booking class is the dominant predictor: Economy passengers fly routes averaging 362 fewer miles than Business passengers.
+Finally, we modeled \textit{Arrival Delay in Minutes} (imputed in preprocessing) using all available predictors: demographics, flight distance, the 14 service ratings, and departure delay in minutes. This yields roughly 21 features (after one-hot encoding of categoricals). Standardisation was applied for numerical stability, especially for the Poisson GLM.
+
+OLS provides interpretable coefficients but can produce negative delay predictions, which are impossible. A Poisson GLM (log link) constrains predictions to be non-negative and is theoretically well suited to non-negative, right-skewed outcomes. Table~\ref{tab:reg_rmse} reports test-set performance. On this dataset, OLS achieved a lower RMSE (11.02 minutes) than the Poisson model (55.44 minutes). The Poisson fit may be hampered by the scale and variance of delay (which is not strictly count-like), whereas OLS adapts to the conditional mean without distributional constraints. The Poisson formulation remains useful when non-negative predictions are required; OLS may produce a small number of negative predicted delays on the test set.
 
 \begin{table}[h!]
 \centering
-\caption{OLS regression --- coefficient estimates for Flight Distance.}
-\label{tab:ols}
-\begin{tabular}{lrrrr}
+\caption{Test-set RMSE for Arrival Delay in Minutes ($N = 25{,}976$).}
+\label{tab:reg_rmse}
+\begin{tabular}{lc}
 \toprule
-\textbf{Variable} & \textbf{Coef.} & \textbf{Std.\ Err.} & \textbf{$t$} & \textbf{$p$} \\
+\textbf{Model} & \textbf{RMSE (minutes)} \\
 \midrule
-Intercept                       & 1189.45 & 2.65 &  448.2 & $<.001$ \\
-Age                             &  $-27.89$ & 2.80 &  $-9.97$ & $<.001$ \\
-Customer Type (disloyal)        & $-246.49$ & 3.10 & $-79.49$ & $<.001$ \\
-Travel Type (Personal)          & $-140.36$ & 3.56 & $-39.46$ & $<.001$ \\
-Class (Eco)                     & $-361.98$ & 3.49 & $-103.7$ & $<.001$ \\
+Linear Regression (OLS)   & 11.02 \\
+Poisson Regression (GLM)  & 55.44 \\
 \bottomrule
 \end{tabular}
 \end{table}
-
-However, OLS is theoretically flawed for this task, as it assumes normally distributed errors and can predict impossible negative distances. A Poisson GLM (using a log link) mathematically guarantees non-negative predictions. While both models produced valid predictions on the test set, the Poisson model achieved a lower RMSE (\textbf{844.12} vs.\ \textbf{856.66} miles), confirming that its variance assumptions better fit strictly positive, right-skewed data.
 
 % ─────────────────────────────────────────────────────────────
 \section{Conclusions}
@@ -203,7 +200,7 @@ However, OLS is theoretically flawed for this task, as it assumes normally distr
     \item \textbf{Key Satisfaction Drivers:} Online boarding quality, travel purpose (Business), and customer loyalty are the strongest predictors of passenger satisfaction. 
     \item \textbf{Classification Performance:} Logistic Regression and LDA (87\% accuracy) outperform non-linear or independence-assuming models, proving that simple linear boundaries are sufficient for this dataset.
     \item \textbf{Multinomial Limitations:} Eco Plus passengers are difficult to classify due to overlapping traits with both Economy and Business classes.
-    \item \textbf{Regression Approach:} For strictly non-negative, right-skewed outcomes like Flight Distance, a Poisson GLM is both theoretically more sound and practically more accurate than standard OLS.
+    \item \textbf{Regression Approach:} For arrival delay in minutes, OLS achieved lower test RMSE (11.02 min) than the Poisson GLM (55.44 min) on this dataset. A Poisson model remains useful when non-negative predictions are required; OLS is more flexible but can yield a few negative predicted delays.
 \end{itemize}
 
 \end{document}
