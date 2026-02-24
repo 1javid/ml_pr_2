@@ -219,18 +219,18 @@ MODEL_METRICS = {
 
 MULTINOMIAL_REPORT = {
     "Class": ["Business", "Eco", "Eco Plus", "Macro Avg", "Weighted Avg"],
-    "Precision": [0.88, 0.79, 0.16, 0.61, 0.79],
-    "Recall":    [0.80, 0.73, 0.34, 0.62, 0.73],
-    "F1-score":  [0.84, 0.76, 0.22, 0.61, 0.76],
-    "Support":   [13977, 9929, 2070, 25976, 25976],
+    "Precision": [0.88, 0.78, 0.17, 0.61, 0.78],
+    "Recall":    [0.79, 0.73, 0.35, 0.62, 0.73],
+    "F1-score":  [0.83, 0.75, 0.23, 0.60, 0.75],
+    "Support":   [12495, 11564, 1917, 25976, 25976],
 }
 
 REGRESSION_RESULTS = {
     "Model": ["Linear Regression (OLS)", "Poisson Regression (GLM)"],
-    "RMSE (miles)": [856.66, 844.12],
+    "RMSE (minutes)": [11.02, 55.44],
     "Notes": [
-        "No negative predictions; interpretable coefficients",
-        "Better fit for count-like distance data; lower RMSE",
+        "Lower test RMSE; can produce a few negative predicted delays",
+        "Guarantees non-negative predictions; higher RMSE on this target",
     ],
 }
 
@@ -350,7 +350,7 @@ if page == "🏠 Overview":
         for title, desc in {
             "🎯 Binary Classification": "Predict overall passenger satisfaction\n(satisfied vs neutral/dissatisfied)",
             "📦 Multinomial Classification": "Predict travel class\n(Business · Eco · Eco Plus)",
-            "📏 Regression": "Predict flight distance\n(Linear OLS vs Poisson GLM)",
+            "📏 Regression": "Predict arrival delay (minutes)\n(Linear OLS vs Poisson GLM)",
         }.items():
             with st.expander(title, expanded=True):
                 st.markdown(desc)
@@ -362,7 +362,7 @@ if page == "🏠 Overview":
             ("2", "Preprocessing", "Median imputation, one-hot encoding, StandardScaler"),
             ("3", "Binary Classification", "Logistic Regression · LDA · QDA · Naive Bayes"),
             ("4", "Multinomial Classification", "Logistic Regression (3 classes)"),
-            ("5", "Regression", "OLS Linear · Poisson GLM for flight distance"),
+            ("5", "Regression", "OLS Linear · Poisson GLM for arrival delay (minutes)"),
             ("6", "Model Evaluation", "Accuracy · Precision · Recall · F1 · ROC-AUC"),
         ]:
             st.markdown(
@@ -712,9 +712,9 @@ elif page == "📊 Model Comparison":
 
         fig_multi = go.Figure()
         for metric, vals, color in [
-            ("Precision", [0.88, 0.79, 0.16], "#38bdf8"),
-            ("Recall",    [0.80, 0.73, 0.34], "#818cf8"),
-            ("F1-score",  [0.84, 0.76, 0.22], "#34d399"),
+            ("Precision", [0.88, 0.78, 0.17], "#38bdf8"),
+            ("Recall",    [0.79, 0.73, 0.35], "#818cf8"),
+            ("F1-score",  [0.83, 0.75, 0.23], "#34d399"),
         ]:
             fig_multi.add_trace(go.Bar(
                 name=metric, x=["Business","Eco","Eco Plus"], y=vals,
@@ -730,22 +730,22 @@ elif page == "📊 Model Comparison":
             legend=dict(bgcolor="#1e293b", bordercolor="#334155"),
         )
         st.plotly_chart(fig_multi, use_container_width=True)
-        st.info("**Note:** Eco Plus class has very low precision (0.16) due to class imbalance — only 2,070 samples vs 13,977 Business and 9,929 Eco in the test set.")
+        st.info("**Note:** Eco Plus class has very low precision (0.17) due to class imbalance — only 1,917 samples vs 12,495 Business and 11,564 Eco in the test set.")
 
     with tabs[2]:
-        st.markdown("### Regression Models — Predicting Flight Distance")
+        st.markdown("### Regression Models — Predicting Arrival Delay (minutes)")
         df_reg = pd.DataFrame(REGRESSION_RESULTS)
         st.dataframe(
-            df_reg.style.format({"RMSE (miles)": "{:.2f}"})
+            df_reg.style.format({"RMSE (minutes)": "{:.2f}"})
                         .set_properties(**{"background-color":"#1e293b","color":"#e2e8f0"})
-                        .highlight_min(subset=["RMSE (miles)"], color="#052e16"),
+                        .highlight_min(subset=["RMSE (minutes)"], color="#052e16"),
             use_container_width=True,
         )
         fig_rmse = go.Figure(go.Bar(
             x=["Linear Regression (OLS)", "Poisson Regression (GLM)"],
-            y=[856.66, 844.12],
+            y=[11.02, 55.44],
             marker_color=["#f472b6", "#34d399"],
-            text=["856.66 miles", "844.12 miles"],
+            text=["11.02 min", "55.44 min"],
             textposition="outside", textfont=dict(color="#e2e8f0"), width=0.4,
         ))
         fig_rmse.update_layout(
@@ -753,11 +753,11 @@ elif page == "📊 Model Comparison":
             plot_bgcolor="#1e293b", paper_bgcolor="#0f172a",
             font=dict(color="#e2e8f0"), height=350,
             margin=dict(t=50, b=20, l=20, r=20),
-            yaxis=dict(title="RMSE (miles)", gridcolor="#334155", color="#94a3b8", range=[820, 880]),
+            yaxis=dict(title="RMSE (minutes)", gridcolor="#334155", color="#94a3b8", range=[0, 65]),
             xaxis=dict(color="#94a3b8"),
         )
         st.plotly_chart(fig_rmse, use_container_width=True)
-        st.info("**Poisson Regression** marginally outperforms OLS (RMSE 844.12 vs 856.66 miles). Since flight distances are non-negative count-like values, the Poisson GLM provides a more appropriate distributional assumption.")
+        st.info("**OLS** achieves lower test RMSE (11.02 vs 55.44 minutes). Poisson guarantees non-negative predictions but fits this delay target less well.")
 
 
 # ─────────────────────────────────────────────────────────────
@@ -848,7 +848,7 @@ elif page == "📋 Example Results":
     st.markdown('<div class="section-header">Confusion Matrix — LDA (Optimal Threshold = 0.5413)</div>', unsafe_allow_html=True)
     st.caption("Test set: n = 25,976")
 
-    tn, fp, fn, tp = 12068, 1323, 2056, 10529
+    tn, fp, fn, tp = 13261, 1312, 2053, 9350
     total = tn + fp + fn + tp
     fig_cm = go.Figure(go.Heatmap(
         z=[[tn, fp], [fn, tp]],
